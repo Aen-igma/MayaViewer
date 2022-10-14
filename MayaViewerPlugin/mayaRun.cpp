@@ -108,7 +108,7 @@ class CallbackHandler {
 
 CallbackHandler callbackHandler;
 MCallbackId addNodeCallback;
-MCallbackId fileImportedCallback;
+MCallbackId connectionCallback;
 
 
 MObject m_node;
@@ -139,7 +139,7 @@ void TopologyModified(MNodeMessage::AttributeMessage msg, MPlug& plug, MPlug& ot
 void PreTopologyIDModified(MUintArray componentIds[], unsigned int count, void* clientData);
 void PreTopologyModified(MObject& node, void* clientData);
 void VertexModified(MNodeMessage::AttributeMessage msg, MPlug& plug, MPlug& otherPlug, void* clientData);
-void ShaderShanged(MPlug& srcPlug, MPlug& destPlug, bool made, void* clientData);
+void ShaderChanged(MPlug& srcPlug, MPlug& destPlug, bool made, void* clientData);
 void ShaderModified(MNodeMessage::AttributeMessage msg, MPlug& plug, MPlug& otherPlug, void* clientData);
 void PostNodeAdded(void* clientData);
 void NameChanged(MObject& node, const MString& str, void* clientData);
@@ -435,7 +435,7 @@ void VertexModified(MNodeMessage::AttributeMessage msg, MPlug& plug, MPlug& othe
 	}
 }
 
-void ShaderShanged(MPlug& srcPlug, MPlug& destPlug, bool made, void* clientData) {
+void ShaderChanged(MPlug& srcPlug, MPlug& destPlug, bool made, void* clientData) {
 	MObject srcNode(srcPlug.node());
 	MObject destNode(destPlug.node());
 	MFnDependencyNode dSrcNode(srcNode);
@@ -487,7 +487,10 @@ void ShaderModified(MNodeMessage::AttributeMessage msg, MPlug& plug, MPlug& othe
 		e.color << color;
 		e.ambientColor << ambientColor;
 		SendMsg(&e, sizeof(e));
+
+		Print("Msg:{0} | {1} \n", node.apiTypeStr(), name);
 	}
+
 }
 
 void PostNodeAdded(void* clientData) {
@@ -607,6 +610,7 @@ EXPORT MStatus initializePlugin(MObject obj) {
 	Print("// -------------------------Plugin Loaded---------------------------- //\n");
 
 	addNodeCallback = MDGMessage::addNodeAddedCallback(NodeAdded);
+	connectionCallback = MDGMessage::addConnectionCallback(ShaderChanged);
 
 	MItDependencyNodes itCam(MFn::kCamera);
 	MObject mainCam(itCam.thisNode());
@@ -719,9 +723,9 @@ EXPORT MStatus uninitializePlugin(MObject obj) {
 	endThread = true;
 	update.join();
 
-	MMessage::removeCallback(addNodeCallback);
 	callbackHandler.RemoveAllCallbacks();
-
+	MMessage::removeCallback(addNodeCallback);
+	MMessage::removeCallback(connectionCallback);
 
 	return MS::kSuccess;
 }

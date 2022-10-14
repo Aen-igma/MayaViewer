@@ -78,23 +78,27 @@ void MayaViewer::EventCallback(Event* event) {
 		material->setParameterAutoBinding("u_inverseTransposeWorldViewMatrix", "INVERSE_TRANSPOSE_WORLD_VIEW_MATRIX");
 		material->getParameter("u_ambientColor")->setValue(e.ambientColor);
 		material->getParameter("u_diffuseColor")->setValue(e.color);
-		material->getParameter("u_directionalLightColor")->setValue(Vector3(0.6f, 0.6f, 0.6f));
-		material->getParameter("u_directionalLightDirection")->setValue(Vector3(0.f, 0.f, -1.f));
+		material->getParameter("u_directionalLightColor[0]")->setValue(Vector3(0.6f, 0.6f, 0.6f));
+		material->getParameter("u_directionalLightDirection[0]")->setValue(Vector3(0.f, 0.f, -1.f));
 		material->getStateBlock()->setCullFace(true);
 		material->getStateBlock()->setDepthTest(true);
-		material->getStateBlock()->setDepthWrite(true);
 
+		Texture::Sampler* sampler;
 		std::string filePath(e.textureFilePath);
 		if(!filePath.empty())
-			material->getParameter("u_diffuseTexture")->setValue(filePath.c_str(), true);
+			sampler = material->getParameter("u_diffuseTexture")->setValue(filePath.c_str(), true);
 		else
-			material->getParameter("u_diffuseTexture")->setValue("resource/DefaultTexture.png", true);
+			sampler = material->getParameter("u_diffuseTexture")->setValue("resource/DefaultTexture.png", true);
+		sampler->setFilterMode(Texture::LINEAR_MIPMAP_LINEAR, Texture::LINEAR);
+		sampler->setWrapMode(Texture::Wrap::REPEAT, Texture::Wrap::REPEAT);
 
 		filePath = e.normalFilePath;
 		if(!filePath.empty())
-			material->getParameter("u_normalmapTexture")->setValue(filePath.c_str(), true);
+			sampler = material->getParameter("u_normalmapTexture")->setValue(filePath.c_str(), true);
 		else
-			material->getParameter("u_normalmapTexture")->setValue("resource/DefaultNormal.png", true);
+			sampler = material->getParameter("u_normalmapTexture")->setValue("resource/DefaultNormal.png", true);
+		sampler->setFilterMode(Texture::LINEAR_MIPMAP_LINEAR, Texture::LINEAR);
+		sampler->setWrapMode(Texture::Wrap::REPEAT, Texture::Wrap::REPEAT);
 
 
 		if(!materials.count(e.shaderName))
