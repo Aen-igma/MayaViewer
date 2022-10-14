@@ -6,7 +6,7 @@
 MayaViewer game;
 
 const size_t megaByte(1024000ull);
-Comlib com(L"MayaViewer", megaByte * 200ull, ProcessType::Consumer);
+Comlib com(L"MayaViewer", megaByte * 500ull, ProcessType::Consumer);
 Comlib comRefresh(L"RefreshPlugin", megaByte, ProcessType::Producer);
 MessageHeader messageHeader;
 std::map<std::string, std::map<std::string, Material*>> materials;

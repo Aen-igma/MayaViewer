@@ -59,12 +59,14 @@ class CallbackHandler {
 	public:
 	CallbackHandler():callbacks() {}
 
-	void Append(const std::string& node, const std::string& callbackName, const MCallbackId& callback) {
-		if(callbacks.count(node) == 0ull)
+	void Append(const std::string& node, const std::string& callbackName, MCallbackId callback) {
+		if(!callbacks.count(node))
 			callbacks.emplace(node, std::map<std::string, MCallbackId>());
 
-		if(callbacks.at(node).count(callbackName) == 0ull)
+		if(!callbacks.at(node).count(callbackName))
 			callbacks.at(node).emplace(callbackName, callback);
+		else
+			MMessage::removeCallback(callback);
 	}
 
 	void RemoveCallback(const std::string& node, const std::string& callbackName) {
@@ -77,9 +79,8 @@ class CallbackHandler {
 
 	void RemoveAscociatedCallbacks(const std::string& node) {
 		if(callbacks.count(node)) {
-			for(auto& [key, i] : callbacks.at(node)) {
+			for(auto& [key, i] : callbacks.at(node))
 				MMessage::removeCallback(i);
-			}
 
 			callbacks.erase(node);
 		}
@@ -107,7 +108,7 @@ class CallbackHandler {
 
 CallbackHandler callbackHandler;
 MCallbackId addNodeCallback;
-MCallbackId removeNodeCallback;
+MCallbackId fileImportedCallback;
 
 
 MObject m_node;
@@ -120,7 +121,7 @@ enum NODE_TYPE {TRANSFORM, MESH};
 bool endThread(false);
 std::thread update;
 const size_t megaByte(1024000ull);
-Comlib com(L"MayaViewer", megaByte * 200ull, ProcessType::Producer);
+Comlib com(L"MayaViewer", megaByte * 500ull, ProcessType::Producer);
 Comlib comRefresh(L"RefreshPlugin", megaByte, ProcessType::Consumer);
 MessageHeader messageHeader;
 
@@ -140,7 +141,7 @@ void PreTopologyModified(MObject& node, void* clientData);
 void VertexModified(MNodeMessage::AttributeMessage msg, MPlug& plug, MPlug& otherPlug, void* clientData);
 void ShaderShanged(MPlug& srcPlug, MPlug& destPlug, bool made, void* clientData);
 void ShaderModified(MNodeMessage::AttributeMessage msg, MPlug& plug, MPlug& otherPlug, void* clientData);
-void ConnectionMade(MPlug& srcPlug, MPlug& destPlug, bool made, void* clientData);
+void PostNodeAdded(void* clientData);
 void NameChanged(MObject& node, const MString& str, void* clientData);
 void ObjectMoved(MNodeMessage::AttributeMessage msg, MPlug& plug, MPlug& otherPlug, void* clientData);
 void NodeRemoved(MObject& node, void* clientData);
@@ -307,7 +308,7 @@ void GetMeshData(MObject& node, std::vector<Vertex>& vertecies) {
 	}
 }
 
-void AddMesh(MObject& node, const char* clientData = "\0") {
+bool AddMesh(MObject& node) {
 
 	MStatus status;
 	MFnMesh mesh(node);
@@ -340,25 +341,29 @@ void AddMesh(MObject& node, const char* clientData = "\0") {
 	}
 
 
-	EventMeshCreated e;
-	memcpy(e.name, dNode.name().asChar(), MStrLength(dNode.name()));
-	memcpy(e.shaderName, shaderName.asChar(), MStrLength(shaderName));
-	memcpy(e.textureFilePath, textureFilePath.asChar(), MFileLength(textureFilePath));
-	memcpy(e.normalFilePath, normalFilePath.asChar(), MFileLength(normalFilePath));
-	e.color << color;
-	e.ambientColor << ambientColor;
-	e.vertexCount = static_cast<uint32_t>(vertecies.size());
+	if(vertecies.size()) {
+		EventMeshCreated e;
+		memcpy(e.name, dNode.name().asChar(), MStrLength(dNode.name()));
+		memcpy(e.shaderName, shaderName.asChar(), MStrLength(shaderName));
+		memcpy(e.textureFilePath, textureFilePath.asChar(), MFileLength(textureFilePath));
+		memcpy(e.normalFilePath, normalFilePath.asChar(), MFileLength(normalFilePath));
+		e.color << color;
+		e.ambientColor << ambientColor;
+		e.vertexCount = static_cast<uint32_t>(vertecies.size());
 
-	uint32_t eventSize = sizeof(EventMeshCreated);
-	uint32_t vertSize = sizeof(Vertex) * e.vertexCount;
-	uint32_t fullSize = eventSize + vertSize;
-	char* data = NEW char[fullSize];
-	memcpy(data, &e, eventSize);
-	memcpy(data + sizeof(e), vertecies.data(), vertSize);
-	SendMsg(data, fullSize);
-	delete[] data;
+		uint32_t eventSize = sizeof(EventMeshCreated);
+		uint32_t vertSize = sizeof(Vertex) * e.vertexCount;
+		uint32_t fullSize = eventSize + vertSize;
+		char* data = NEW char[fullSize];
+		memcpy(data, &e, eventSize);
+		memcpy(data + sizeof(e), vertecies.data(), vertSize);
+		SendMsg(data, fullSize);
+		delete[] data;
 
-	callbackHandler.RemoveCallback(clientData, "ConnectionMade");
+		return true;
+	}
+
+	return false;
 }
 
 
@@ -485,11 +490,24 @@ void ShaderModified(MNodeMessage::AttributeMessage msg, MPlug& plug, MPlug& othe
 	}
 }
 
-void ConnectionMade(MPlug& srcPlug, MPlug& destPlug, bool made, void* clientData) {
-	MObject node(destPlug.node());
+void PostNodeAdded(void* clientData) {
+	const char* name = (char*)clientData;
 
-	if(node.hasFn(MFn::kMesh) && made)
-		AddMesh(node, (char*)clientData);
+	MObject node;
+	MItDependencyNodes it(MFn::kMesh);
+	while(!it.isDone()) {
+		MFnDagNode dCurrent(it.thisNode());
+		if(dCurrent.name() == MString(name)) {
+			node = it.thisNode();
+			break;
+		}
+		it.next();
+	}
+
+	if(!node.hasFn(MFn::kInvalid))
+		AddMesh(node);
+
+	callbackHandler.RemoveCallback(name, "PostNodeAdded");
 }
 
 void NameChanged(MObject& node, const MString& str, void* clientData) {
@@ -545,18 +563,22 @@ void NodeRemoved(MObject& node, void* clientData) {
 void NodeAdded(MObject &node, void* clientData) {
 	MFnDagNode dNode(node);
 
-	if(node.hasFn(MFn::kLambert) || node.hasFn(MFn::kBlinn) || node.hasFn(MFn::kPhong)) {
-		callbackHandler.Append(dNode.name().asChar(), "ShaderModified", MNodeMessage::addAttributeChangedCallback(node, ShaderModified));
-		callbackHandler.Append(dNode.name().asChar(), "NodeRemoved", MNodeMessage::addNodePreRemovalCallback(node, NodeRemoved));
-	}
-
 	if(node.hasFn(MFn::kTransform)) {
-		callbackHandler.Append(dNode.name().asChar(), "ConnectionMade", MDGMessage::addConnectionCallback(ConnectionMade, (void*)dNode.name().asChar()));
 		callbackHandler.Append(dNode.name().asChar(), "ObjectMoved", MNodeMessage::addAttributeChangedCallback(node, ObjectMoved));
 		callbackHandler.Append(dNode.name().asChar(), "NodeRemoved", MNodeMessage::addNodePreRemovalCallback(node, NodeRemoved));
 	}
 
+	if(node.hasFn(MFn::kLambert) || node.hasFn(MFn::kBlinn) || node.hasFn(MFn::kPhong)) {
+		callbackHandler.Append(dNode.name().asChar(), "ShaderModified", MNodeMessage::addAttributeChangedCallback(node, ShaderModified));
+		callbackHandler.Append(dNode.name().asChar(), "NodeRemoved", MNodeMessage::addNodePreRemovalCallback(node, NodeRemoved));
+		callbackHandler.Append(dNode.name().asChar(), "NameChanged", MNodeMessage::addNameChangedCallback(node, NameChanged));
+	}
+
 	if(node.hasFn(MFn::kMesh)) {
+
+		if(!AddMesh(node))
+			callbackHandler.Append(dNode.name().asChar(), "PostNodeAdded", MEventMessage::addEventCallback("idle", PostNodeAdded, (void*)dNode.name().asChar()));
+
 		bool want[3]{true};
 		callbackHandler.Append(dNode.name().asChar(), "PreTopologyIDModified", MPolyMessage::addPolyComponentIdChangedCallback(node, want, 3, PreTopologyIDModified, (void*)dNode.name().asChar()));
 		callbackHandler.Append(dNode.name().asChar(), "PreTopologyModified", MPolyMessage::addPolyTopologyChangedCallback(node, PreTopologyModified));
@@ -585,7 +607,6 @@ EXPORT MStatus initializePlugin(MObject obj) {
 	Print("// -------------------------Plugin Loaded---------------------------- //\n");
 
 	addNodeCallback = MDGMessage::addNodeAddedCallback(NodeAdded);
-	removeNodeCallback = MDGMessage::addConnectionCallback(ShaderShanged);
 
 	MItDependencyNodes itCam(MFn::kCamera);
 	MObject mainCam(itCam.thisNode());
@@ -648,6 +669,7 @@ EXPORT MStatus initializePlugin(MObject obj) {
 			}
 
 			callbackHandler.Append(name.asChar(), "ShaderModified", MNodeMessage::addAttributeChangedCallback(shader, ShaderModified));
+			callbackHandler.Append(name.asChar(), "NodeRemoved", MNodeMessage::addNodePreRemovalCallback(shader, NodeRemoved));
 			callbackHandler.Append(name.asChar(), "NameChanged", MNodeMessage::addNameChangedCallback(shader, NameChanged));
 			itShader.next();
 		}
@@ -698,7 +720,6 @@ EXPORT MStatus uninitializePlugin(MObject obj) {
 	update.join();
 
 	MMessage::removeCallback(addNodeCallback);
-	MMessage::removeCallback(removeNodeCallback);
 	callbackHandler.RemoveAllCallbacks();
 
 

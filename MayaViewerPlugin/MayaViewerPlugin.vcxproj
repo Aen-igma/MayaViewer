@@ -87,6 +87,7 @@
     <OutDir>$(SolutionDir)bin\$(Configuration)-$(PlatFormShortName)\</OutDir>
     <IntDir>$(SolutionDir)bin\intermediate\$(MSBuildProjectName)\$(Configuration)-$(PlatFormShortName)\</IntDir>
     <LibraryPath>E:\Autodesk\Maya2022\lib\;$(LibraryPath)</LibraryPath>
+    <PostBuildEventUseInBuild>true</PostBuildEventUseInBuild>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <LinkIncremental>false</LinkIncremental>
@@ -100,6 +101,8 @@
     <OutDir>$(SolutionDir)bin\$(Configuration)-$(PlatFormShortName)\</OutDir>
     <IntDir>$(SolutionDir)bin\intermediate\$(MSBuildProjectName)\$(Configuration)-$(PlatFormShortName)\</IntDir>
     <LibraryPath>E:\Autodesk\Maya2022\lib\;$(LibraryPath)</LibraryPath>
+    <PreBuildEventUseInBuild>true</PreBuildEventUseInBuild>
+    <PostBuildEventUseInBuild>true</PostBuildEventUseInBuild>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
