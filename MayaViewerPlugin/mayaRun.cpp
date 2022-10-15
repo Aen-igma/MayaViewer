@@ -48,6 +48,8 @@ inline Vec3f& operator<< (Vec3f& v, const MVector& rhs) {
 struct Vertex {
 	Vec3f position;
 	Vec3f normal;
+	Vec3f tangent;
+	Vec3f biTangent;
 	Vec2f texcoord;
 
 	Vertex() : position(), normal(), texcoord() {}
@@ -234,14 +236,17 @@ void SetPos(const MObject& node, const bool& isCamera = false) {
 	MFnDependencyNode dNodeChild(MObject(dNode.child(0)));
 
 	float orthoWidth(10.f);
+	float fov(45.f);
 	if(isCamera) {
 		if(node.hasFn(MFn::kTransform)) {
 			MObject child(dNode.child(0));
 			MFnCamera camera(child);
 			orthoWidth = static_cast<float>(camera.orthoWidth());
+			fov = static_cast<float>(camera.horizontalFieldOfView());
 		} else {
 			MFnCamera camera(node);
 			orthoWidth = static_cast<float>(camera.orthoWidth());
+			fov = static_cast<float>(camera.horizontalFieldOfView());
 		}
 	} 
 
@@ -249,6 +254,7 @@ void SetPos(const MObject& node, const bool& isCamera = false) {
 	memcpy(e.name, dNodeChild.name().asChar(), MStrLength(dNodeChild.name()));
 	e.isCamera = isCamera;
 	e.orthoWidth = orthoWidth;
+	e.fov = fov;
 	e.transform << GetWorldMatrix(dNode);
 	SendMsg(&e, sizeof(e));
 }
@@ -289,9 +295,19 @@ void GetMeshData(MObject& node, std::vector<Vertex>& vertecies) {
 					MVector normal;
 					mesh.getFaceVertexNormal(i, ind[k], normal);
 
+					// Tangent
+					MVector tangent;
+					mesh.getFaceVertexTangent(i, ind[k], tangent);
+
+					// BiTangent
+					MVector biTangent;
+					mesh.getFaceVertexBinormal(i, ind[k], biTangent);
+
 					Vertex v;
-					v.position << pos;
-					v.normal << normal;
+					v.position	<< pos;
+					v.normal	<< normal;
+					v.tangent	<< tangent;
+					v.biTangent << biTangent;
 
 					// Texcoord
 					if(!s1.error() && s2.error())
@@ -487,8 +503,6 @@ void ShaderModified(MNodeMessage::AttributeMessage msg, MPlug& plug, MPlug& othe
 		e.color << color;
 		e.ambientColor << ambientColor;
 		SendMsg(&e, sizeof(e));
-
-		Print("Msg:{0} | {1} \n", node.apiTypeStr(), name);
 	}
 
 }

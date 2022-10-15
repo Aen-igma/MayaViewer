@@ -72,7 +72,7 @@ struct EventMeshDeleted : public Event {
 };
 
 struct EventTransform : public Event {
-	EventTransform() :Event(EventType::Transform), transform(), isCamera(false), orthoWidth(10.f), name{'\0'} {}
+	EventTransform() :Event(EventType::Transform), transform(), isCamera(false), orthoWidth(10.f), fov(45.f), name{'\0'} {}
 	virtual ~EventTransform() override {};
 
 	static EventType GetStaticType() {
@@ -82,6 +82,7 @@ struct EventTransform : public Event {
 	char name[50];
 	bool isCamera;
 	float orthoWidth;
+	float fov;
 	Mat4f transform;
 };
 

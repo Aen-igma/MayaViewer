@@ -15,6 +15,8 @@ std::map<std::string, std::map<std::string, Material*>> materials;
 struct Vertex {
 	Vector3 position;
 	Vector3 normal;
+	Vector3 tangent;
+	Vector3 biTangent;
 	Vector2 texcoord;
 
 	Vertex() : position(Vector3::zero()), normal(Vector3::zero()), texcoord(Vector2::zero()) {}
@@ -24,9 +26,11 @@ Mesh* CreateMesh(Vertex* meshData, uint32_t vertexCount) {
 	VertexFormat::Element elements[] = {
 		VertexFormat::Element(VertexFormat::POSITION, 3),
 		VertexFormat::Element(VertexFormat::NORMAL, 3),
+		VertexFormat::Element(VertexFormat::TANGENT, 3),
+		VertexFormat::Element(VertexFormat::BINORMAL, 3),
 		VertexFormat::Element(VertexFormat::TEXCOORD0, 2)
 	};
-	Mesh* mesh = Mesh::createMesh(VertexFormat(elements, 3), vertexCount, true);
+	Mesh* mesh = Mesh::createMesh(VertexFormat(elements, 5), vertexCount, true);
 	if(mesh == nullptr) {
 		GP_ERROR("Failed to create mesh.");
 		return nullptr;
@@ -73,7 +77,7 @@ void MayaViewer::EventCallback(Event* event) {
 		Mesh* mesh = CreateMesh(vertecies, e.vertexCount);
 		Model* model = Model::create(mesh);
 		
-		Material* material = model->setMaterial("resource/shaders/textured.vert", "resource/shaders/Custom.frag", "DIRECTIONAL_LIGHT_COUNT 1");
+		Material* material = model->setMaterial("resource/shaders/textured.vert", "resource/shaders/Custom.frag", "BUMPED;DIRECTIONAL_LIGHT_COUNT 1");
 		material->setParameterAutoBinding("u_worldViewProjectionMatrix", "WORLD_VIEW_PROJECTION_MATRIX");
 		material->setParameterAutoBinding("u_inverseTransposeWorldViewMatrix", "INVERSE_TRANSPOSE_WORLD_VIEW_MATRIX");
 		material->getParameter("u_ambientColor")->setValue(e.ambientColor);
@@ -89,7 +93,7 @@ void MayaViewer::EventCallback(Event* event) {
 			sampler = material->getParameter("u_diffuseTexture")->setValue(filePath.c_str(), true);
 		else
 			sampler = material->getParameter("u_diffuseTexture")->setValue("resource/DefaultTexture.png", true);
-		sampler->setFilterMode(Texture::LINEAR_MIPMAP_LINEAR, Texture::LINEAR);
+		sampler->setFilterMode(Texture::NEAREST_MIPMAP_LINEAR, Texture::LINEAR);
 		sampler->setWrapMode(Texture::Wrap::REPEAT, Texture::Wrap::REPEAT);
 
 		filePath = e.normalFilePath;
@@ -97,7 +101,7 @@ void MayaViewer::EventCallback(Event* event) {
 			sampler = material->getParameter("u_normalmapTexture")->setValue(filePath.c_str(), true);
 		else
 			sampler = material->getParameter("u_normalmapTexture")->setValue("resource/DefaultNormal.png", true);
-		sampler->setFilterMode(Texture::LINEAR_MIPMAP_LINEAR, Texture::LINEAR);
+		sampler->setFilterMode(Texture::NEAREST_MIPMAP_LINEAR, Texture::LINEAR);
 		sampler->setWrapMode(Texture::Wrap::REPEAT, Texture::Wrap::REPEAT);
 
 
@@ -164,8 +168,9 @@ void MayaViewer::EventCallback(Event* event) {
 		} else if(e.isCamera) {
 			Camera* cam = _scene->getActiveCamera();
 			Matrix proj;
+			float fov = MATH_RAD_TO_DEG(e.fov);
 			if(name.find("persp") != std::string::npos)
-				Matrix::createPerspective(45.f, getAspectRatio(), 0.01f, 2000.f, &proj);
+				Matrix::createPerspective(fov, getAspectRatio(), 0.01f, 2000.f, &proj);
 			else
 				Matrix::createOrthographic(e.orthoWidth, e.orthoWidth / getAspectRatio(), 0.01f, 2000.f, &proj);
 			cam->setProjectionMatrix(proj);
