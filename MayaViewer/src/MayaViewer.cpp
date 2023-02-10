@@ -48,6 +48,9 @@ void MayaViewer::initialize() {
 
 	SET_DEBUG_FLAGS;
 
+	Game::setVsync(true);
+	gameplay::
+	Properties* conf = Game::getConfig();
     _scene = Scene::create();
 	
 	Camera* camera = Camera::createPerspective(45.f, getAspectRatio(), 0.01f, 2000.f);
